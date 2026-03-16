@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes">
-    <title>前线·完全拖拽版</title>
+    <title>前线·瞄准指示版</title>
     <style>
         * {
             box-sizing: border-box;
@@ -20,6 +20,7 @@
             align-items: center;
             padding: 8px;
             touch-action: pan-y;
+            position: relative;
         }
         .game-container {
             max-width: 500px;
@@ -29,6 +30,18 @@
             padding: 16px 12px;
             box-shadow: 0 10px 20px rgba(0,0,0,0.6);
             border: 2px solid #6b8c5c;
+            position: relative;
+            z-index: 5;
+        }
+        /* 画布用于绘制箭头 */
+        #arrowCanvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 10000;
         }
         .player-header {
             display: flex;
@@ -41,7 +54,6 @@
             color: #f0f4d0;
             border: 1px solid #8aa87d;
             font-weight: bold;
-            text-shadow: 1px 1px 0 #1e3a1e;
         }
         .player-badge {
             display: flex;
@@ -61,232 +73,107 @@
             gap: 8px;
             margin-top: 2px;
         }
-        .hp {
-            background: #721717;
-            padding: 4px 10px;
-            border-radius: 20px;
-            color: #ffdba0;
-            font-size: 1rem;
-        }
-        .command {
-            background: #2a4f6e;
-            padding: 4px 10px;
-            border-radius: 20px;
-            color: #b6e2ff;
-        }
+        .hp { background: #721717; padding: 4px 10px; border-radius: 20px; color: #ffdba0; }
+        .command { background: #2a4f6e; padding: 4px 10px; border-radius: 20px; color: #b6e2ff; }
         .turn-indicator {
-            background: #dba44b;
-            color: #1d3a1d;
-            padding: 6px 12px;
-            border-radius: 40px;
-            font-size: 0.9rem;
-            white-space: nowrap;
-        }
-        /* 总部攻击目标区 */
-        .headquarter-target {
-            background: #8b6e4b;
-            border-radius: 30px;
-            padding: 4px 14px;
-            font-size: 1.1rem;
-            border: 2px solid #f3c26b;
-            color: #2a2a0a;
-            margin-left: 5px;
-            cursor: grab;
-            box-shadow: 0 2px 0 #5e3e1e;
-            transition: 0.1s;
-        }
-        .headquarter-target.drop-highlight {
-            background: #d9a066;
-            border-color: #fff5b0;
-            transform: scale(1.05);
+            background: #dba44b; color: #1d3a1d; padding: 6px 12px; border-radius: 40px;
+            font-size: 0.9rem; white-space: nowrap;
         }
         .battlefield {
-            background: #527a52;
-            border-radius: 28px;
-            padding: 14px 8px;
-            border: 2px solid #9bba8b;
+            background: #527a52; border-radius: 28px; padding: 14px 8px; border: 2px solid #9bba8b;
             margin-bottom: 16px;
         }
         .row {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            margin: 8px 0;
-            min-height: 95px;
+            display: flex; align-items: center; justify-content: space-between; margin: 8px 0; min-height: 95px;
         }
         .zone {
-            flex: 1;
-            background: #3f613f;
-            border-radius: 20px;
-            padding: 8px 4px;
-            margin: 0 3px;
-            border: 1px solid #b1cf9a;
-            box-shadow: inset 0 2px 5px #1e3a1e;
-            display: flex;
-            flex-wrap: wrap;
-            gap: 5px;
-            justify-content: center;
-            align-items: center;
-            min-height: 85px;
-            transition: background-color 0.2s;
+            flex: 1; background: #3f613f; border-radius: 20px; padding: 8px 4px; margin: 0 3px;
+            border: 1px solid #b1cf9a; box-shadow: inset 0 2px 5px #1e3a1e;
+            display: flex; flex-wrap: wrap; gap: 5px; justify-content: center; align-items: center;
+            min-height: 85px; transition: background-color 0.2s;
         }
-        .zone.drop-highlight {
-            background-color: #7fa87f;
-            border: 3px solid #ffd966;
+        .zone.valid-target {
+            background-color: #7fa87f; border: 3px solid #ffd966;
         }
         .zone-label {
-            font-size: 0.65rem;
-            color: #dcedb9;
-            text-align: center;
-            width: 100%;
-            margin-bottom: 4px;
-            text-transform: uppercase;
-            font-weight: 600;
+            font-size: 0.65rem; color: #dcedb9; text-align: center; width: 100%; margin-bottom: 4px;
+            text-transform: uppercase; font-weight: 600;
         }
+        /* 总部目标（放置在战场两侧） */
+        .hq-target {
+            background: #8b6e4b; border-radius: 30px; padding: 8px 16px; font-size: 1rem;
+            border: 2px solid #f3c26b; color: #2a2a0a; box-shadow: 0 2px 0 #5e3e1e;
+            display: inline-block; margin: 5px; cursor: pointer; transition: 0.1s;
+            text-align: center; font-weight: bold;
+        }
+        .hq-target.valid-target {
+            background: #d9a066; border-color: #fff5b0; transform: scale(1.05);
+        }
+        .hq-target.disabled {
+            opacity: 0.5; pointer-events: none;
+        }
+        /* 单位卡片 */
         .unit-card {
-            background: #f3e9c0;
-            border: 2px solid #7b5f3a;
-            border-radius: 18px;
-            padding: 6px 4px;
-            min-width: 75px;
-            max-width: 85px;
-            font-size: 0.7rem;
-            text-align: center;
-            color: #2d2d0a;
-            box-shadow: 2px 3px 0 #4f673a;
-            position: relative;
-            margin: 2px 0;
-            transition: all 0.1s;
-            cursor: grab;
-            touch-action: none;
+            background: #f3e9c0; border: 2px solid #7b5f3a; border-radius: 18px; padding: 6px 4px;
+            min-width: 75px; max-width: 85px; font-size: 0.7rem; text-align: center; color: #2d2d0a;
+            box-shadow: 2px 3px 0 #4f673a; position: relative; margin: 2px 0; transition: all 0.1s;
+            cursor: pointer;
         }
-        .unit-card.dragging {
-            opacity: 0.3;
+        .unit-card.selected {
+            border: 4px solid #f9a825; background: #fff3c9; transform: scale(1.02);
         }
-        .unit-name {
-            font-weight: 800;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
+        .unit-card.valid-target {
+            border: 4px solid #f44336; background: #ffe4e4; cursor: crosshair;
         }
-        .unit-stats {
-            display: flex;
-            justify-content: space-around;
-            margin: 5px 0 3px;
-            font-weight: bold;
-        }
-        .unit-abilities {
-            display: flex;
-            flex-wrap: wrap;
-            justify-content: center;
-            gap: 4px;
-            font-size: 0.6rem;
-            color: #3f6123;
-        }
-        .ability-tag {
-            background: #5a7c4a;
-            color: #faf9da;
-            border-radius: 12px;
-            padding: 2px 6px;
-        }
+        .unit-name { font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .unit-stats { display: flex; justify-content: space-around; margin: 5px 0 3px; font-weight: bold; }
+        .unit-abilities { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px; font-size: 0.6rem; }
+        .ability-tag { background: #5a7c4a; color: #faf9da; border-radius: 12px; padding: 2px 6px; }
+        /* 手牌区：左右两个独立手牌区 */
         .hand-area {
-            background: #4a684a;
-            border-radius: 40px;
-            padding: 14px 8px;
-            border: 2px solid #c7ddaf;
+            background: #4a684a; border-radius: 40px; padding: 12px 8px; border: 2px solid #c7ddaf;
+            margin-bottom: 10px;
         }
-        .hand-title {
-            color: #fcf9cf;
-            margin-left: 10px;
-            margin-bottom: 6px;
-            font-weight: 600;
-        }
+        .hand-title { color: #fcf9cf; margin-left: 10px; margin-bottom: 4px; font-weight: 600; font-size: 0.9rem; }
         .hand-cards {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 8px;
-            justify-content: center;
-            align-items: center;
-            min-height: 100px;
+            display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; align-items: center;
+            min-height: 80px;
         }
         .hand-card {
-            background: #e3d6b5;
-            border: 2px solid #826e42;
-            border-radius: 24px;
-            padding: 12px 8px;
-            min-width: 90px;
-            text-align: center;
-            font-size: 0.8rem;
-            font-weight: bold;
-            box-shadow: 0 4px 0 #5e7342;
-            cursor: grab;
-            transition: 0.05s linear;
-            touch-action: none;
+            background: #e3d6b5; border: 2px solid #826e42; border-radius: 20px; padding: 8px 4px;
+            min-width: 80px; text-align: center; font-size: 0.75rem; font-weight: bold;
+            box-shadow: 0 4px 0 #5e7342; cursor: pointer; transition: 0.05s linear;
         }
-        .hand-card.dragging {
-            opacity: 0.3;
-            transform: scale(0.95);
+        .hand-card.selected {
+            border: 4px solid #f9a825; background: #fff3c9; transform: scale(1.02);
         }
         .hand-card.disabled {
-            opacity: 0.4;
-            pointer-events: none;
+            opacity: 0.4; pointer-events: none;
         }
-        .hand-cost {
-            background: #4f614a;
-            color: white;
-            border-radius: 20px;
-            padding: 3px 8px;
-            display: inline-block;
-            margin-top: 5px;
+        .hand-card.valid-target {
+            border: 4px solid #4caf50; background: #e8f5e9; cursor: crosshair;
         }
-        .drag-clone {
-            position: fixed;
-            z-index: 9999;
-            pointer-events: none;
-            transform: translate(-50%, -50%);
-            width: 90px;
-            background: #e3d6b5;
-            border: 3px solid #f9a825;
-            border-radius: 24px;
-            padding: 12px 8px;
-            text-align: center;
-            font-size: 0.8rem;
-            font-weight: bold;
-            box-shadow: 0 8px 10px rgba(0,0,0,0.5);
-            opacity: 0.9;
-        }
+        .hand-cost { background: #4f614a; color: white; border-radius: 20px; padding: 2px 6px; display: inline-block; margin-top: 3px; }
         .end-turn-btn {
-            background: #bc8f4f;
-            border: none;
-            border-radius: 40px;
-            padding: 16px 20px;
-            font-size: 1.2rem;
-            font-weight: bold;
-            color: #1e3a1e;
-            width: 100%;
-            margin-top: 18px;
-            box-shadow: 0 5px 0 #6e4f2b;
-            cursor: pointer;
-            text-align: center;
+            background: #bc8f4f; border: none; border-radius: 40px; padding: 14px 20px; font-size: 1.2rem;
+            font-weight: bold; color: #1e3a1e; width: 100%; margin-top: 10px; box-shadow: 0 5px 0 #6e4f2b;
+            cursor: pointer; text-align: center;
         }
-        .end-turn-btn:active {
-            transform: translateY(3px);
-            box-shadow: 0 2px 0 #6e4f2b;
-        }
-        .footer-info {
-            display: flex;
-            justify-content: space-between;
-            margin: 5px 0;
-            color: #d3e0b0;
+        .end-turn-btn:active { transform: translateY(3px); box-shadow: 0 2px 0 #6e4f2b; }
+        .footer-info { display: flex; justify-content: space-between; margin: 5px 0; color: #d3e0b0; }
+        /* 双总部行 */
+        .hq-row {
+            display: flex; justify-content: space-between; margin: 6px 0;
         }
     </style>
 </head>
 <body>
 <div class="game-container" id="gameContainer"></div>
+<canvas id="arrowCanvas"></canvas>
 
 <script>
     (function() {
-        // ----- 单位类 -----
+        // ----- 单位类 (不变) -----
         class Unit {
             constructor(id, name, type, attack, health, cost, abilities = []) {
                 this.id = id;
@@ -298,7 +185,7 @@
                 this.cost = cost;
                 this.abilities = abilities;
                 this.owner = null;
-                this.position = null; // 'support' 或 'front'
+                this.position = null;
                 this.moved = false;
                 this.attacked = false;
                 this.vigilUsed = false;
@@ -335,7 +222,7 @@
             { name: '烟雾弹兵', type: 'infantry', attack: 1, health: 2, cost: 1, abilities: ['烟幕'] }
         ];
 
-        // ----- 全局状态 -----
+        // ----- 状态 -----
         let gameState = {
             players: [
                 { id: 0, hp: 20, maxCommand: 1, command: 1, hand: [] },
@@ -345,19 +232,18 @@
             frontlineOwner: null,
             units: [],
             nextUnitId: 1000,
+            // 交互状态
+            selectedUnitId: null,      // 选中的己方单位ID
+            selectedHandIndex: -1,      // 选中的手牌索引（只有当前玩家）
+            aimActive: false,           // 是否正在瞄准（显示箭头）
+            aimX: 0, aimY: 0,           // 当前触摸点坐标
+            validTargets: new Set(),    // 存储当前有效的目标DOM元素
         };
 
-        // ----- 拖拽状态 -----
-        let dragState = {
-            active: false,
-            type: null,          // 'hand' 或 'unit'
-            startCardIndex: -1,   // 手牌索引
-            startUnitId: null,    // 单位ID
-            startClientX: 0,
-            startClientY: 0,
-            cloneElement: null,
-            originalElement: null,
-        };
+        // canvas引用
+        let canvas, ctx;
+        // 标记是否已初始化canvas监听
+        let canvasInit = false;
 
         // ----- 辅助函数 -----
         function getPlayer(pId) { return gameState.players[pId]; }
@@ -367,34 +253,30 @@
         function updateFrontlineOwner() {
             const p0front = hasUnitInFront(0);
             const p1front = hasUnitInFront(1);
-            if (p0front && !p1front) gameState.frontlineOwner = 0;
-            else if (!p0front && p1front) gameState.frontlineOwner = 1;
-            else gameState.frontlineOwner = null;
+            gameState.frontlineOwner = (p0front && !p1front) ? 0 : (!p0front && p1front) ? 1 : null;
         }
 
-        // 移动合法性
+        // 合法性检查 (移动,攻击)
         function canMoveToFront(unit) {
             if (!unit || unit.owner !== gameState.currentPlayer) return false;
             if (unit.position === 'front') return false;
             if (!unit.canMove()) return false;
-            const opponent = 1 - gameState.currentPlayer;
-            if (hasUnitInFront(opponent)) return false;
+            if (hasUnitInFront(1 - gameState.currentPlayer)) return false; // 敌方前线有单位
             if (getPlayer(gameState.currentPlayer).command < 1) return false;
             return true;
         }
 
-        // 攻击合法性（不检查指挥点）
         function canAttackTarget(attacker, targetType, targetUnit = null) {
             if (!attacker || attacker.owner !== gameState.currentPlayer) return false;
             if (!attacker.canAttack()) return false;
+            if (getPlayer(gameState.currentPlayer).command < 1) return false;
 
             if (targetUnit && targetUnit.hasAbility('烟幕') && !targetUnit.moved && !targetUnit.attacked && !targetUnit.deployedThisTurn) {
                 return false;
             }
 
             if (attacker.type === 'artillery') {
-                if (targetType === 'headquarter') return true;
-                return true;
+                return true; // 炮兵可攻击任何单位/总部
             }
 
             if (targetType === 'headquarter') {
@@ -411,7 +293,6 @@
             return false;
         }
 
-        // 守护检查
         function isProtectedByGuard(targetUnit, attacker) {
             if (attacker.type === 'artillery') return false;
             if (!targetUnit) return false;
@@ -446,7 +327,7 @@
             }
         }
 
-        // ----- 动作 -----
+        // ----- 动作执行 -----
         function deployCard(playerId, cardIndex) {
             const player = gameState.players[playerId];
             if (playerId !== gameState.currentPlayer) return false;
@@ -473,10 +354,10 @@
                 newUnit.attacked = true;
                 newUnit.deployedThisTurn = true;
             }
-
             gameState.units.push(newUnit);
             player.hand.splice(cardIndex, 1);
             updateFrontlineOwner();
+            clearSelection();
             render();
             return true;
         }
@@ -484,12 +365,11 @@
         function moveUnit(unitId) {
             const unit = gameState.units.find(u => u.id === unitId);
             if (!unit || !canMoveToFront(unit)) return false;
-
-            const player = getPlayer(gameState.currentPlayer);
-            player.command -= 1;
+            getPlayer(gameState.currentPlayer).command -= 1;
             unit.moved = true;
             unit.position = 'front';
             updateFrontlineOwner();
+            clearSelection();
             render();
             return true;
         }
@@ -505,7 +385,6 @@
             }
 
             if (!canAttackTarget(attacker, targetType, targetUnit)) return false;
-            if (getPlayer(gameState.currentPlayer).command < 1) return false;
 
             // 守护检查
             if (targetType === 'unit' && targetUnit) {
@@ -527,10 +406,10 @@
             attacker.attacked = true;
 
             if (targetType === 'unit' && targetUnit) {
-                // 伏击
                 const attackerDied = handleVigil(targetUnit, attacker);
                 if (attackerDied) {
                     removeDeadUnits();
+                    clearSelection();
                     render();
                     return true;
                 }
@@ -548,6 +427,7 @@
             else if (gameState.players[1].hp <= 0) alert('玩家0胜利！');
 
             updateFrontlineOwner();
+            clearSelection();
             render();
             return true;
         }
@@ -559,232 +439,209 @@
             if (player.maxCommand < 12) player.maxCommand++;
             player.command = player.maxCommand;
             gameState.units.forEach(u => u.resetTurn());
+            clearSelection();
             render();
         }
 
-        // ----- 拖拽逻辑 -----
-        function setupDragDrop() {
-            // 手牌拖拽
-            document.querySelectorAll('.hand-card:not(.disabled)').forEach(card => {
-                card.removeEventListener('touchstart', onHandDragStart);
-                card.addEventListener('touchstart', onHandDragStart, { passive: false });
-            });
-            // 单位拖拽 (仅当前玩家单位)
-            document.querySelectorAll('.unit-card').forEach(card => {
-                const unitId = card.dataset.unitId;
+        // 清除选中状态
+        function clearSelection() {
+            gameState.selectedUnitId = null;
+            gameState.selectedHandIndex = -1;
+            gameState.aimActive = false;
+            gameState.validTargets.clear();
+            if (canvas) canvas.style.display = 'none';
+        }
+
+        // ----- 交互事件处理 -----
+        function handleTouchStart(e) {
+            if (gameState.currentPlayer !== 0) return; // 只有玩家0回合可操作
+            const touch = e.touches[0];
+            const targetEl = document.elementFromPoint(touch.clientX, touch.clientY);
+            if (!targetEl) return;
+
+            // 检查点击的是否为己方单位
+            if (targetEl.classList.contains('unit-card')) {
+                const unitId = targetEl.dataset.unitId;
                 if (unitId) {
                     const unit = gameState.units.find(u => u.id == unitId);
                     if (unit && unit.owner === gameState.currentPlayer) {
-                        card.removeEventListener('touchstart', onUnitDragStart);
-                        card.addEventListener('touchstart', onUnitDragStart, { passive: false });
-                    } else {
-                        // 敌方单位不可拖拽
-                        card.style.cursor = 'default';
+                        e.preventDefault();
+                        // 选中单位，进入瞄准模式
+                        clearSelection();
+                        gameState.selectedUnitId = unit.id;
+                        gameState.aimActive = true;
+                        gameState.aimX = touch.clientX;
+                        gameState.aimY = touch.clientY;
+                        computeValidTargetsForUnit(unit);
+                        showCanvas();
+                        render();
                     }
                 }
-            });
+            }
+            // 检查点击的是否为手牌（当前玩家手牌）
+            else if (targetEl.classList.contains('hand-card') && !targetEl.classList.contains('disabled')) {
+                const handIdx = targetEl.dataset.index;
+                if (handIdx !== undefined) {
+                    e.preventDefault();
+                    clearSelection();
+                    gameState.selectedHandIndex = parseInt(handIdx);
+                    gameState.aimActive = true;
+                    gameState.aimX = touch.clientX;
+                    gameState.aimY = touch.clientY;
+                    computeValidTargetsForHand(parseInt(handIdx));
+                    showCanvas();
+                    render();
+                }
+            } else {
+                // 点击空白处取消选中
+                clearSelection();
+                render();
+            }
         }
 
-        // 手牌拖拽开始
-        function onHandDragStart(e) {
+        function handleTouchMove(e) {
+            if (!gameState.aimActive) return;
             e.preventDefault();
-            const card = e.currentTarget;
-            const index = card.dataset.index;
-            if (index === undefined) return;
-            const player = gameState.players[0]; // 人类玩家固定0
-            if (player.command < player.hand[index]?.cost) {
-                alert('指挥点不足');
+            const touch = e.touches[0];
+            gameState.aimX = touch.clientX;
+            gameState.aimY = touch.clientY;
+            drawArrow();
+        }
+
+        function handleTouchEnd(e) {
+            if (!gameState.aimActive) {
+                clearSelection();
+                render();
                 return;
             }
-
-            const touch = e.touches[0];
-            dragState = {
-                active: true,
-                type: 'hand',
-                startCardIndex: parseInt(index),
-                startClientX: touch.clientX,
-                startClientY: touch.clientY,
-                originalElement: card,
-                cloneElement: createClone(card, touch.clientX, touch.clientY),
-            };
-            card.classList.add('dragging');
-            highlightDropZones('hand');
-            bindDragEvents();
-        }
-
-        // 单位拖拽开始
-        function onUnitDragStart(e) {
             e.preventDefault();
-            const card = e.currentTarget;
-            const unitId = card.dataset.unitId;
-            if (!unitId) return;
-            const unit = gameState.units.find(u => u.id == unitId);
-            if (!unit || unit.owner !== gameState.currentPlayer) return;
-
-            const touch = e.touches[0];
-            dragState = {
-                active: true,
-                type: 'unit',
-                startUnitId: parseInt(unitId),
-                startClientX: touch.clientX,
-                startClientY: touch.clientY,
-                originalElement: card,
-                cloneElement: createClone(card, touch.clientX, touch.clientY),
-            };
-            card.classList.add('dragging');
-            highlightDropZones('unit', unit);
-            bindDragEvents();
-        }
-
-        function createClone(original, x, y) {
-            const clone = document.createElement('div');
-            clone.className = 'drag-clone';
-            clone.innerHTML = original.innerHTML;
-            clone.style.left = x + 'px';
-            clone.style.top = y + 'px';
-            document.body.appendChild(clone);
-            return clone;
-        }
-
-        function highlightDropZones(dragType, unit = null) {
-            // 手牌只能部署到支援线
-            if (dragType === 'hand') {
-                document.getElementById('mySupportZone')?.classList.add('drop-highlight');
-            } else if (dragType === 'unit' && unit) {
-                // 单位：可移动到前线、攻击敌方单位、攻击总部
-                if (unit.position === 'support' && canMoveToFront(unit)) {
-                    document.getElementById('frontlineZone')?.classList.add('drop-highlight');
-                }
-                // 敌方单位高亮由 touchmove 动态处理，但我们可以高亮所有敌方单位卡片
-                document.querySelectorAll('.unit-card').forEach(card => {
-                    const uid = card.dataset.unitId;
-                    if (uid) {
-                        const targetUnit = gameState.units.find(u => u.id == uid);
-                        if (targetUnit && targetUnit.owner !== gameState.currentPlayer) {
-                            if (canAttackTarget(unit, 'unit', targetUnit)) {
-                                card.classList.add('drop-highlight');
-                            }
-                        }
-                    }
-                });
-                // 总部攻击区
-                const hqTarget = document.querySelector('.headquarter-target');
-                if (hqTarget && canAttackTarget(unit, 'headquarter')) {
-                    hqTarget.classList.add('drop-highlight');
-                }
-            }
-        }
-
-        function clearHighlights() {
-            document.querySelectorAll('.drop-highlight').forEach(el => el.classList.remove('drop-highlight'));
-        }
-
-        function bindDragEvents() {
-            document.addEventListener('touchmove', onDragMove, { passive: false });
-            document.addEventListener('touchend', onDragEnd, { passive: false });
-            document.addEventListener('touchcancel', onDragCancel, { passive: false });
-        }
-
-        function onDragMove(e) {
-            if (!dragState.active) return;
-            e.preventDefault();
-            const touch = e.touches[0];
-            if (dragState.cloneElement) {
-                dragState.cloneElement.style.left = touch.clientX + 'px';
-                dragState.cloneElement.style.top = touch.clientY + 'px';
-            }
-            // 动态高亮目标（可选，但为了性能，可暂不实现动态切换）
-        }
-
-        function onDragEnd(e) {
-            if (!dragState.active) return;
-            e.preventDefault();
-
             const touch = e.changedTouches[0];
             if (!touch) {
-                cleanDrag();
+                clearSelection();
+                render();
                 return;
             }
-
-            // 获取落点元素
+            // 获取触摸结束位置的元素
             const targetEl = document.elementFromPoint(touch.clientX, touch.clientY);
             if (!targetEl) {
-                cleanDrag();
+                clearSelection();
+                render();
                 return;
             }
 
-            const dragType = dragState.type;
-            let success = false;
-
-            if (dragType === 'hand') {
-                // 部署：检查落点是否在我方支援线
-                const mySupport = document.getElementById('mySupportZone');
-                if (mySupport && (targetEl === mySupport || mySupport.contains(targetEl))) {
-                    success = deployCard(0, dragState.startCardIndex);
+            // 检查是否为有效目标
+            let actionPerformed = false;
+            if (gameState.selectedUnitId) {
+                const attackerId = gameState.selectedUnitId;
+                // 攻击敌方单位
+                if (targetEl.classList.contains('unit-card') && targetEl.classList.contains('valid-target')) {
+                    const targetId = targetEl.dataset.unitId;
+                    if (targetId) {
+                        actionPerformed = attackAction(attackerId, 'unit', parseInt(targetId));
+                    }
                 }
-            } else if (dragType === 'unit') {
-                const attackerId = dragState.startUnitId;
-                const attacker = gameState.units.find(u => u.id === attackerId);
-                if (!attacker) { cleanDrag(); return; }
+                // 攻击总部
+                else if (targetEl.classList.contains('hq-target') && targetEl.classList.contains('valid-target')) {
+                    // 确定是哪个总部: 如果targetEl包含敌方标识
+                    const isEnemyHQ = targetEl.dataset.hq === 'enemy';
+                    if (isEnemyHQ) {
+                        actionPerformed = attackAction(attackerId, 'headquarter');
+                    }
+                }
+                // 移动到前线
+                else if (targetEl.classList.contains('zone') && targetEl.id === 'frontlineZone' && targetEl.classList.contains('valid-target')) {
+                    actionPerformed = moveUnit(attackerId);
+                }
+            }
+            else if (gameState.selectedHandIndex !== -1) {
+                // 部署手牌
+                if (targetEl.classList.contains('zone') && targetEl.id === 'mySupportZone' && targetEl.classList.contains('valid-target')) {
+                    actionPerformed = deployCard(gameState.currentPlayer, gameState.selectedHandIndex);
+                }
+            }
 
-                // 1. 移动：落点在前线区域
+            if (!actionPerformed) {
+                // 无效目标，取消选中
+                clearSelection();
+                render();
+            } else {
+                // 动作已执行，selection已在函数内清除
+            }
+        }
+
+        // 计算单位模式下有效目标
+        function computeValidTargetsForUnit(unit) {
+            gameState.validTargets.clear();
+            // 移动目标：前线区域（如果可移动）
+            if (canMoveToFront(unit)) {
                 const frontlineZone = document.getElementById('frontlineZone');
-                if (frontlineZone && (targetEl === frontlineZone || frontlineZone.contains(targetEl))) {
-                    if (canMoveToFront(attacker)) {
-                        success = moveUnit(attackerId);
-                    }
-                }
-                // 2. 攻击敌方单位
-                else {
-                    // 向上查找单位卡片
-                    let card = targetEl.closest('.unit-card');
-                    if (card) {
-                        const targetId = card.dataset.unitId;
-                        if (targetId) {
-                            const targetUnit = gameState.units.find(u => u.id == targetId);
-                            if (targetUnit && targetUnit.owner !== attacker.owner) {
-                                if (canAttackTarget(attacker, 'unit', targetUnit) && getPlayer(gameState.currentPlayer).command >= 1) {
-                                    success = attackAction(attackerId, 'unit', parseInt(targetId));
-                                }
-                            }
-                        }
-                    }
-                    // 3. 攻击总部
-                    else {
-                        const hqTarget = targetEl.closest('.headquarter-target');
-                        if (hqTarget) {
-                            if (canAttackTarget(attacker, 'headquarter') && getPlayer(gameState.currentPlayer).command >= 1) {
-                                success = attackAction(attackerId, 'headquarter');
-                            }
-                        }
-                    }
-                }
+                if (frontlineZone) gameState.validTargets.add(frontlineZone);
             }
-
-            if (!success) {
-                // 简单的触感反馈
-                // 可忽略
+            // 攻击敌方单位
+            gameState.units.forEach(other => {
+                if (other.owner !== unit.owner && canAttackTarget(unit, 'unit', other)) {
+                    const el = document.querySelector(`.unit-card[data-unit-id="${other.id}"]`);
+                    if (el) gameState.validTargets.add(el);
+                }
+            });
+            // 攻击敌方总部
+            if (canAttackTarget(unit, 'headquarter')) {
+                const enemyHQ = document.querySelector('.hq-target[data-hq="enemy"]');
+                if (enemyHQ) gameState.validTargets.add(enemyHQ);
             }
-
-            cleanDrag();
         }
 
-        function onDragCancel(e) {
-            cleanDrag();
+        // 计算手牌部署有效目标 (只有我方支援线)
+        function computeValidTargetsForHand(handIdx) {
+            gameState.validTargets.clear();
+            const player = gameState.players[gameState.currentPlayer];
+            if (player.command >= player.hand[handIdx].cost) {
+                const mySupport = document.getElementById('mySupportZone');
+                if (mySupport) gameState.validTargets.add(mySupport);
+            }
         }
 
-        function cleanDrag() {
-            if (dragState.originalElement) {
-                dragState.originalElement.classList.remove('dragging');
-            }
-            if (dragState.cloneElement) {
-                dragState.cloneElement.remove();
-            }
-            clearHighlights();
-            document.removeEventListener('touchmove', onDragMove);
-            document.removeEventListener('touchend', onDragEnd);
-            document.removeEventListener('touchcancel', onDragCancel);
-            dragState.active = false;
+        // 显示canvas并开始绘制
+        function showCanvas() {
+            if (!canvas) return;
+            canvas.style.display = 'block';
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            drawArrow();
+        }
+
+        function drawArrow() {
+            if (!canvas || !gameState.aimActive) return;
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            const startEl = gameState.selectedUnitId 
+                ? document.querySelector(`.unit-card[data-unit-id="${gameState.selectedUnitId}"]`)
+                : (gameState.selectedHandIndex !== -1 ? document.querySelector(`.hand-card[data-index="${gameState.selectedHandIndex}"]`) : null);
+            if (!startEl) return;
+            const rect = startEl.getBoundingClientRect();
+            const startX = rect.left + rect.width / 2;
+            const startY = rect.top + rect.height / 2;
+            const endX = gameState.aimX;
+            const endY = gameState.aimY;
+
+            ctx.beginPath();
+            ctx.strokeStyle = '#ffaa00';
+            ctx.lineWidth = 4;
+            ctx.setLineDash([8, 6]);
+            ctx.moveTo(startX, startY);
+            ctx.lineTo(endX, endY);
+            ctx.stroke();
+            ctx.setLineDash([]); // 实线箭头
+
+            // 画箭头
+            const angle = Math.atan2(endY - startY, endX - startX);
+            const arrowSize = 20;
+            ctx.fillStyle = '#ffaa00';
+            ctx.beginPath();
+            ctx.moveTo(endX, endY);
+            ctx.lineTo(endX - arrowSize * Math.cos(angle - 0.3), endY - arrowSize * Math.sin(angle - 0.3));
+            ctx.lineTo(endX - arrowSize * Math.cos(angle + 0.3), endY - arrowSize * Math.sin(angle + 0.3));
+            ctx.closePath();
+            ctx.fill();
         }
 
         // ----- 渲染 -----
@@ -798,21 +655,18 @@
                 <div class="player-header">
                     <div class="player-badge">
                         <span>🔰 P1</span>
-                        <div class="hp-command">
-                            <span class="hp">❤️${p0.hp}</span>
-                            <span class="command">⚡${p0.command}/${p0.maxCommand}</span>
-                        </div>
+                        <div class="hp-command"><span class="hp">❤️${p0.hp}</span><span class="command">⚡${p0.command}/${p0.maxCommand}</span></div>
                     </div>
                     <div class="turn-indicator">${current === 0 ? '▶️你的回合' : '⏸️敌方回合'}</div>
                     <div class="player-badge right">
                         <span>🔰 P2</span>
-                        <div class="hp-command">
-                            <span class="hp">❤️${p1.hp}</span>
-                            <span class="command">⚡${p1.command}/${p1.maxCommand}</span>
-                        </div>
-                        <!-- 总部攻击目标区 -->
-                        <div class="headquarter-target" data-target="headquarter">🏛️总部</div>
+                        <div class="hp-command"><span class="hp">❤️${p1.hp}</span><span class="command">⚡${p1.command}/${p1.maxCommand}</span></div>
                     </div>
+                </div>
+                <!-- 总部行（双方支援线外侧） -->
+                <div class="hq-row">
+                    <div class="hq-target" data-hq="friend" style="background:#2d6e2d; border-color:#9bba8b;">🏛️我方总部</div>
+                    <div class="hq-target ${current === 0 ? '' : 'disabled'}" data-hq="enemy" style="background:#8b4b4b; border-color:#f3c26b;">🏛️敌方总部</div>
                 </div>
                 <div class="battlefield">
                     <!-- 敌方支援线 -->
@@ -838,26 +692,48 @@
                         </div>
                     </div>
                 </div>
+                <!-- 双人手牌区（上方敌方，下方我方） -->
                 <div class="hand-area">
-                    <div class="hand-title">📋 手牌 (拖拽部署)</div>
-                    <div class="hand-cards" id="handContainer">
-                        ${renderHand(0)}
+                    <div class="hand-title">📋 敌方手牌 (P2)</div>
+                    <div class="hand-cards" id="handEnemy">
+                        ${renderHand(1, false)}
+                    </div>
+                </div>
+                <div class="hand-area">
+                    <div class="hand-title">📋 我方手牌 (P1) ${current === 0 ? '⚡可操作' : '⏸️等待'}</div>
+                    <div class="hand-cards" id="handFriendly">
+                        ${renderHand(0, true)}
                     </div>
                 </div>
                 <button class="end-turn-btn" id="endTurnBtn">⏭️ 结束回合</button>
                 <div class="footer-info">
                     <span>⚡移动/攻击消耗1</span>
-                    <span>🎴拖拽部署</span>
+                    <span>🎴点击单位→瞄准目标</span>
                 </div>
             `;
 
             container.innerHTML = html;
 
-            // 绑定结束回合
+            // 标记有效目标（添加class valid-target）
+            if (gameState.aimActive) {
+                gameState.validTargets.forEach(el => {
+                    if (el && el.classList) el.classList.add('valid-target');
+                });
+                // 高亮选中的单位/手牌
+                if (gameState.selectedUnitId) {
+                    const selEl = document.querySelector(`.unit-card[data-unit-id="${gameState.selectedUnitId}"]`);
+                    if (selEl) selEl.classList.add('selected');
+                } else if (gameState.selectedHandIndex !== -1) {
+                    const selEl = document.querySelector(`.hand-card[data-index="${gameState.selectedHandIndex}"]`);
+                    if (selEl) selEl.classList.add('selected');
+                }
+            }
+
+            // 绑定事件
             document.getElementById('endTurnBtn').addEventListener('click', endTurn);
 
-            // 设置拖拽
-            setupDragDrop();
+            // 全局触摸事件
+            container.addEventListener('touchstart', handleTouchStart, { passive: false });
         }
 
         function renderUnitsInZone(owner, zone) {
@@ -877,11 +753,12 @@
             `;
         }
 
-        function renderHand(playerId) {
+        function renderHand(playerId, isActive) {
             const player = gameState.players[playerId];
             if (!player.hand.length) return '<div>手牌空</div>';
             return player.hand.map((card, idx) => {
-                const disabled = (player.command < card.cost) ? 'disabled' : '';
+                // 如果不是当前玩家，禁用点击
+                const disabled = (playerId !== gameState.currentPlayer) ? 'disabled' : (player.command < card.cost ? 'disabled' : '');
                 return `
                     <div class="hand-card ${disabled}" data-index="${idx}">
                         <div>${card.name}</div>
@@ -893,8 +770,25 @@
             }).join('');
         }
 
-        // 启动
-        initGame();
+        // 初始化canvas
+        function initCanvas() {
+            canvas = document.getElementById('arrowCanvas');
+            ctx = canvas.getContext('2d');
+            canvas.style.display = 'none';
+            window.addEventListener('resize', () => {
+                if (canvas.style.display === 'block') {
+                    canvas.width = window.innerWidth;
+                    canvas.height = window.innerHeight;
+                    drawArrow();
+                }
+            });
+            // 全局移动/结束监听
+            document.addEventListener('touchmove', handleTouchMove, { passive: false });
+            document.addEventListener('touchend', handleTouchEnd, { passive: false });
+            document.addEventListener('touchcancel', () => clearSelection());
+        }
+
+        // 初始化游戏
         function initGame() {
             gameState = {
                 players: [
@@ -905,6 +799,11 @@
                 frontlineOwner: null,
                 units: [],
                 nextUnitId: 1000,
+                selectedUnitId: null,
+                selectedHandIndex: -1,
+                aimActive: false,
+                aimX: 0, aimY: 0,
+                validTargets: new Set(),
             };
             for (let p = 0; p < 2; p++) {
                 for (let i = 0; i < 5; i++) {
@@ -913,7 +812,10 @@
                 }
             }
             render();
+            initCanvas();
         }
+
+        initGame();
     })();
 </script>
 </body>
