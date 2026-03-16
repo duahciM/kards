@@ -1,6 +1,7 @@
 import { Game } from '../core/Game';
 import { Unit } from '../core/Unit';
-import { Player, ZoneType, Keyword, PlayerId } from '../core/';
+import { Player } from '../core/Player';
+import { ZoneType, Keyword, PlayerId, UnitType } from '../core/Enums';
 
 export class MovementSystem {
   constructor(private game: Game) {}
