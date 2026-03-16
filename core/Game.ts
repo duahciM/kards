@@ -1,7 +1,13 @@
-import { Player, PlayerId, ZoneType } from './';
+import { Player } from './Player';
+import { PlayerId, ZoneType, Keyword } from './Enums';
 import { CombatSystem } from '../systems/CombatSystem';
 import { MovementSystem } from '../systems/MovementSystem';
 import { Unit } from './Unit';
+import { Card } from './Card';
+import { Flash } from '../keywords/Flash';
+import { Guard } from '../keywords/Guard';
+import { Ambush } from '../keywords/Ambush';
+import { Smoke } from '../keywords/Smoke';
 
 export class Game {
   public players: [Player, Player];
