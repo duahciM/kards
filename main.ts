@@ -1,3 +1,4 @@
+import { Unit } from './core/Unit';
 import './style.css'; // 稍后创建
 import { Game } from './core/Game';
 import { PlayerId, ZoneType, UnitType, Keyword } from './core/Enums';
