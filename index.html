@@ -1,13 +1,858 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Kards-like Game</title>
-  <link rel="stylesheet" href="/src/style.css">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes">
+    <title>前线·移动版 · 类Kards</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+        body {
+            margin: 0;
+            min-height: 100vh;
+            background: #1a2a1f;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 8px;
+        }
+        .game-container {
+            max-width: 500px;
+            width: 100%;
+            background: #2d3e2d;
+            border-radius: 32px;
+            padding: 16px 12px;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.6);
+            border: 2px solid #6b8c5c;
+        }
+        /* 头部信息 */
+        .player-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: #3e5a3e;
+            padding: 12px 10px;
+            border-radius: 40px;
+            margin-bottom: 12px;
+            color: #f0f4d0;
+            border: 1px solid #8aa87d;
+            font-weight: bold;
+            text-shadow: 1px 1px 0 #1e3a1e;
+        }
+        .player-badge {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .hp {
+            background: #721717;
+            padding: 6px 14px;
+            border-radius: 30px;
+            color: #ffdba0;
+            font-size: 1.2rem;
+            border: 1px solid #dba959;
+        }
+        .command {
+            background: #2a4f6e;
+            padding: 6px 14px;
+            border-radius: 30px;
+            color: #b6e2ff;
+        }
+        .turn-indicator {
+            background: #dba44b;
+            color: #1d3a1d;
+            padding: 6px 16px;
+            border-radius: 40px;
+            font-size: 0.9rem;
+        }
+        /* 战场三行 */
+        .battlefield {
+            background: #527a52;
+            border-radius: 28px;
+            padding: 14px 8px;
+            border: 2px solid #9bba8b;
+            margin-bottom: 16px;
+        }
+        .row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin: 8px 0;
+            min-height: 95px;
+        }
+        .zone {
+            flex: 1;
+            background: #3f613f;
+            border-radius: 20px;
+            padding: 8px 4px;
+            margin: 0 3px;
+            border: 1px solid #b1cf9a;
+            box-shadow: inset 0 2px 5px #1e3a1e;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+            justify-content: center;
+            align-items: center;
+            min-height: 85px;
+        }
+        .zone-label {
+            font-size: 0.65rem;
+            color: #dcedb9;
+            text-align: center;
+            width: 100%;
+            margin-bottom: 4px;
+            text-transform: uppercase;
+            font-weight: 600;
+        }
+        .frontline-owner {
+            background: #a1854b;
+            border-radius: 16px;
+            padding: 2px 8px;
+            color: #132013;
+            font-weight: bold;
+            font-size: 0.8rem;
+            text-align: center;
+            margin: 2px 0;
+        }
+        /* 单位卡片 */
+        .unit-card {
+            background: #f3e9c0;
+            border: 2px solid #7b5f3a;
+            border-radius: 18px;
+            padding: 6px 4px;
+            min-width: 75px;
+            max-width: 85px;
+            font-size: 0.7rem;
+            text-align: center;
+            color: #2d2d0a;
+            box-shadow: 2px 3px 0 #4f673a;
+            position: relative;
+            margin: 2px 0;
+            transition: all 0.1s;
+        }
+        .unit-card.selected-attacker {
+            border: 4px solid #f9a825;
+            background: #fff3c9;
+            transform: scale(1.02);
+        }
+        .unit-name {
+            font-weight: 800;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .unit-stats {
+            display: flex;
+            justify-content: space-around;
+            margin: 5px 0 3px;
+            font-weight: bold;
+        }
+        .unit-abilities {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 4px;
+            font-size: 0.6rem;
+            color: #3f6123;
+        }
+        .ability-tag {
+            background: #5a7c4a;
+            color: #faf9da;
+            border-radius: 12px;
+            padding: 2px 6px;
+        }
+        .action-buttons {
+            display: flex;
+            justify-content: center;
+            gap: 6px;
+            margin-top: 6px;
+        }
+        .action-btn {
+            background: #4f4848;
+            border: none;
+            border-radius: 30px;
+            color: white;
+            font-size: 0.7rem;
+            padding: 6px 8px;
+            font-weight: bold;
+            box-shadow: 0 2px 0 #232323;
+            cursor: pointer;
+            flex: 1;
+        }
+        .action-btn:active {
+            transform: translateY(1px);
+            box-shadow: none;
+        }
+        .action-btn.move {
+            background: #3c6b4b;
+        }
+        .action-btn.attack {
+            background: #9c3e3e;
+        }
+        /* 手牌区 */
+        .hand-area {
+            background: #4a684a;
+            border-radius: 40px;
+            padding: 14px 8px;
+            border: 2px solid #c7ddaf;
+        }
+        .hand-title {
+            color: #fcf9cf;
+            margin-left: 10px;
+            margin-bottom: 6px;
+            font-weight: 600;
+        }
+        .hand-cards {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            justify-content: center;
+            align-items: center;
+        }
+        .hand-card {
+            background: #e3d6b5;
+            border: 2px solid #826e42;
+            border-radius: 24px;
+            padding: 12px 8px;
+            min-width: 90px;
+            text-align: center;
+            font-size: 0.8rem;
+            font-weight: bold;
+            box-shadow: 0 4px 0 #5e7342;
+            cursor: pointer;
+            transition: 0.05s linear;
+        }
+        .hand-card:active {
+            transform: translateY(3px);
+            box-shadow: 0 1px 0 #5e7342;
+        }
+        .hand-card.disabled {
+            opacity: 0.4;
+            pointer-events: none;
+        }
+        .hand-cost {
+            background: #4f614a;
+            color: white;
+            border-radius: 20px;
+            padding: 3px 8px;
+            display: inline-block;
+            margin-top: 5px;
+        }
+        .end-turn-btn {
+            background: #bc8f4f;
+            border: none;
+            border-radius: 40px;
+            padding: 16px 20px;
+            font-size: 1.2rem;
+            font-weight: bold;
+            color: #1e3a1e;
+            width: 100%;
+            margin-top: 18px;
+            box-shadow: 0 5px 0 #6e4f2b;
+            cursor: pointer;
+            text-align: center;
+        }
+        .end-turn-btn:active {
+            transform: translateY(3px);
+            box-shadow: 0 2px 0 #6e4f2b;
+        }
+        .target-highlight {
+            border: 3px solid #ffbb33;
+            cursor: crosshair;
+        }
+        .cancel-btn {
+            background: #888;
+            border-radius: 30px;
+            padding: 8px 16px;
+            color: white;
+            font-weight: bold;
+            text-align: center;
+            margin: 6px auto 0;
+            width: fit-content;
+            cursor: pointer;
+        }
+        .footer-info {
+            display: flex;
+            justify-content: space-between;
+            margin: 5px 0;
+            color: #d3e0b0;
+        }
+    </style>
 </head>
 <body>
-  <div id="app"></div>
-  <script type="module" src="/src/main.ts"></script>
+<div class="game-container" id="gameContainer">
+    <!-- 动态渲染JavaScript -->
+</div>
+<script>
+    (function() {
+        // ----- 模块化：单位定义 -----
+        class Unit {
+            constructor(id, name, type, attack, health, cost, abilities = []) {
+                this.id = id;                // 唯一标识
+                this.name = name;
+                this.type = type;             // 'infantry', 'tank', 'artillery'
+                this.attack = attack;
+                this.maxHealth = health;
+                this.health = health;
+                this.cost = cost;              // 部署消耗
+                this.abilities = abilities;     // 词条 ['闪击','守护','伏击','烟幕']
+                // 动态状态
+                this.owner = null;              // 0 或 1
+                this.position = null;           // 'support' 或 'front' (前线)
+                this.moved = false;              // 本回合是否移动过
+                this.attacked = false;            // 本回合是否攻击过
+                this.vigilUsed = false;           // 本回合伏击是否已触发
+                this.deployedThisTurn = false;     // 是否本回合部署 (用于闪击)
+            }
+
+            // 是否具有某能力
+            hasAbility(ab) { return this.abilities.includes(ab); }
+
+            // 是否能移动 (消耗指挥点前检查)
+            canMove() {
+                if (this.moved) return false;                // 已经移动过
+                if (this.type === 'infantry' && this.attacked) return false; // 步兵攻击后不能移动
+                if (this.type === 'tank') return true;        // 坦克可移动 (即使攻击过? 但坦克可以移动并攻击, 所以移动和攻击独立)
+                // 其他类型 (炮兵) 也可以移动? 规则未明确，允许炮兵移动，但炮兵主要在支援线攻击
+                return true;
+            }
+
+            // 是否能攻击 (不考虑目标)
+            canAttack() {
+                if (this.attacked) return false;
+                if (this.type === 'infantry' && this.moved) return false;  // 步兵移动后不能攻击
+                return true;
+            }
+
+            // 重置回合状态 (每回合开始)
+            resetTurn() {
+                this.moved = false;
+                this.attacked = false;
+                this.vigilUsed = false;
+                // 注意: deployedThisTurn 跨回合重置为 false
+                this.deployedThisTurn = false;
+            }
+        }
+
+        // ----- 预定义卡牌库 (模块化) -----
+        const cardLibrary = [
+            { name: '步枪兵', type: 'infantry', attack: 2, health: 3, cost: 1, abilities: [] },
+            { name: '突击步兵', type: 'infantry', attack: 2, health: 2, cost: 1, abilities: ['闪击'] },
+            { name: 'M4坦克', type: 'tank', attack: 3, health: 4, cost: 2, abilities: [] },
+            { name: '谢尔曼', type: 'tank', attack: 4, health: 3, cost: 2, abilities: ['闪击'] },
+            { name: '榴弹炮', type: 'artillery', attack: 3, health: 2, cost: 2, abilities: [] },
+            { name: '护卫兵', type: 'infantry', attack: 1, health: 4, cost: 1, abilities: ['守护'] },
+            { name: '狙击手', type: 'infantry', attack: 3, health: 1, cost: 2, abilities: ['伏击'] },
+            { name: '烟雾弹兵', type: 'infantry', attack: 1, health: 2, cost: 1, abilities: ['烟幕'] }
+        ];
+
+        // ----- 全局状态 -----
+        let gameState = {
+            players: [
+                { id: 0, hp: 20, maxCommand: 1, command: 1, hand: [] },
+                { id: 1, hp: 20, maxCommand: 1, command: 1, hand: [] }
+            ],
+            currentPlayer: 0,
+            frontlineOwner: null,       // null / 0 / 1
+            units: [],                  // 所有在场单位
+            nextUnitId: 1000,
+            selectedAttackerId: null,    // 攻击模式中选中的攻击者ID
+            // 临时标志
+        };
+
+        // ----- 辅助函数 -----
+        function getPlayer(pId) { return gameState.players[pId]; }
+
+        // 根据拥有者获取单位
+        function getUnitsByOwner(owner) {
+            return gameState.units.filter(u => u.owner === owner);
+        }
+
+        // 获取某区域单位
+        function getUnitsInZone(owner, zone) {
+            return gameState.units.filter(u => u.owner === owner && u.position === zone);
+        }
+
+        // 前线是否有某方单位
+        function hasUnitInFront(owner) {
+            return gameState.units.some(u => u.owner === owner && u.position === 'front');
+        }
+
+        // 更新前线控制权
+        function updateFrontlineOwner() {
+            const p0front = hasUnitInFront(0);
+            const p1front = hasUnitInFront(1);
+            if (p0front && !p1front) gameState.frontlineOwner = 0;
+            else if (!p0front && p1front) gameState.frontlineOwner = 1;
+            else gameState.frontlineOwner = null; // 没人或者双方都有(不应发生)
+        }
+
+        // 检查移动合法性 (单位移动到前线)
+        function canMoveToFront(unit) {
+            if (!unit || unit.owner !== gameState.currentPlayer) return false;
+            if (unit.position === 'front') return false; // 已在前线
+            if (unit.moved) return false;
+            if (unit.type === 'infantry' && unit.attacked) return false;
+            // 敌方前线有单位则不能移动
+            const opponent = 1 - gameState.currentPlayer;
+            if (hasUnitInFront(opponent)) return false;
+            // 指挥点足够 (移动消耗1)
+            if (getPlayer(gameState.currentPlayer).command < 1) return false;
+            return true;
+        }
+
+        // 检查攻击合法性 (attacker 对 targetUnit 或总部)
+        function canAttack(attacker, targetType, targetUnit = null) {
+            if (!attacker || attacker.owner !== gameState.currentPlayer) return false;
+            if (!attacker.canAttack()) return false;
+            if (getPlayer(gameState.currentPlayer).command < 1) return false; // 攻击消耗1
+
+            // 烟幕: 如果目标单位有烟幕且未移动/攻击过 (未行动), 则不能攻击
+            if (targetUnit && targetUnit.hasAbility('烟幕') && !targetUnit.moved && !targetUnit.attacked && !targetUnit.deployedThisTurn) {
+                // 烟幕单位在行动前不能被指定
+                return false;
+            }
+
+            // 炮兵: 可以攻击任何位置 (包括总部和单位)
+            if (attacker.type === 'artillery') {
+                if (targetType === 'headquarter') return true; // 允许攻击总部
+                else return true; // 单位任意
+            }
+
+            // 非炮兵: 步兵/坦克
+            // 攻击总部: 必须本单位在前线
+            if (targetType === 'headquarter') {
+                return attacker.position === 'front';
+            }
+
+            // 攻击敌方单位: 检查距离
+            if (!targetUnit) return false;
+            // 如果攻击者在支援线: 只能攻击敌方前线单位
+            if (attacker.position === 'support') {
+                return targetUnit.position === 'front' && targetUnit.owner !== attacker.owner;
+            }
+            // 如果攻击者在前线: 可以攻击敌方支援线或前线 (但一般前线对前线)
+            if (attacker.position === 'front') {
+                return targetUnit.owner !== attacker.owner; // 所有敌方单位 (规则允许前线打支援线吗? 先允许)
+            }
+            return false;
+        }
+
+        // 守护检查: 如果目标是非守护单位, 且敌方存在守护单位且保护该目标, 则攻击非法 (炮兵忽略)
+        function isProtectedByGuard(targetUnit, attacker) {
+            if (attacker.type === 'artillery') return false; // 炮兵无视守护
+            if (!targetUnit) return false; // 攻击总部不涉及单位守护(但守护会保护总部)
+            const opponent = 1 - attacker.owner;
+            const guards = gameState.units.filter(u => u.owner === opponent && u.hasAbility('守护') && u.health > 0);
+            if (guards.length === 0) return false;
+
+            // 守护单位保护相邻单位和总部。 简化： 如果守护与目标在同一排(前线/支援线) 或者守护在前线保护总部? 我们定义:
+            // 守护单位保护：同区域(前线/支援线)的友方单位 + 总部(如果守护在前线)
+            for (let g of guards) {
+                // 如果目标是总部: 只要守护在前线 就保护总部 (如果炮兵无视)
+                if (!targetUnit) { // 总部
+                    if (g.position === 'front') return true; // 前线守护保护总部
+                } else {
+                    // 保护同区域单位
+                    if (g.position === targetUnit.position) return true;
+                    // 另外, 如果守护在前线, 保护支援线的单位? 规则相邻, 我们可以算上: 前线守护保护支援线的单位(相邻行)
+                    if (g.position === 'front' && targetUnit.position === 'support') return true;
+                    if (g.position === 'support' && targetUnit.position === 'front') return true;
+                }
+            }
+            return false;
+        }
+
+        // 处理单位死亡
+        function removeDeadUnits() {
+            gameState.units = gameState.units.filter(u => {
+                if (u.health <= 0) {
+                    // 从场上移除
+                    return false;
+                }
+                return true;
+            });
+            updateFrontlineOwner();
+        }
+
+        // 触发伏击 (目标对攻击者先造成伤害)
+        function handleVigil(target, attacker) {
+            if (target.hasAbility('伏击') && !target.vigilUsed && target.health > 0) {
+                target.vigilUsed = true;
+                // 伏击伤害 = 目标攻击力
+                attacker.health -= target.attack;
+                // 若攻击者死亡, 返回true表示攻击者死亡
+                if (attacker.health <= 0) {
+                    removeDeadUnits();
+                    return true; // 攻击者死亡
+                }
+            }
+            return false;
+        }
+
+        // 反击处理 (目标对攻击者造成伤害)
+        function handleCounter(attacker, target) {
+            if (target.type === 'artillery') return; // 炮兵不反击
+            if (target.health > 0) {
+                attacker.health -= target.attack;
+            }
+        }
+
+        // ----- 初始化游戏 -----
+        function initGame() {
+            // 重置状态
+            gameState = {
+                players: [
+                    { id: 0, hp: 20, maxCommand: 1, command: 1, hand: [] },
+                    { id: 1, hp: 20, maxCommand: 1, command: 1, hand: [] }
+                ],
+                currentPlayer: 0,
+                frontlineOwner: null,
+                units: [],
+                nextUnitId: 1000,
+                selectedAttackerId: null,
+            };
+
+            // 给双方发初始手牌 (各5张, 复制卡牌)
+            for (let p = 0; p < 2; p++) {
+                for (let i = 0; i < 5; i++) {
+                    const cardTemplate = { ...cardLibrary[Math.floor(Math.random() * cardLibrary.length)] };
+                    gameState.players[p].hand.push(cardTemplate);
+                }
+            }
+            // 初始前线无人
+            render();
+        }
+
+        // ----- 动作: 部署 -----
+        function deployCard(playerId, cardIndex) {
+            const player = gameState.players[playerId];
+            if (playerId !== gameState.currentPlayer) return;
+            const card = player.hand[cardIndex];
+            if (!card) return;
+            if (player.command < card.cost) return; // 指挥点不足
+
+            // 扣除指挥点
+            player.command -= card.cost;
+            // 创建单位
+            const newUnit = new Unit(
+                gameState.nextUnitId++,
+                card.name,
+                card.type,
+                card.attack,
+                card.health,
+                card.cost,
+                [...card.abilities]
+            );
+            newUnit.owner = playerId;
+            newUnit.position = 'support'; // 部署到支援线
+            // 闪击: 部署当回合可行动
+            if (newUnit.hasAbility('闪击')) {
+                // 闪击单位部署后，moved/attacked为false，但需要标记 deployedThisTurn 以便烟幕等判断
+                newUnit.deployedThisTurn = true;
+            } else {
+                // 非闪击单位部署当回合不能攻击/移动 (通常规则, 我们设置attacked = true 禁止攻击, 但移动呢? 一般也不能移动, 所以moved = true)
+                newUnit.moved = true;
+                newUnit.attacked = true;
+                newUnit.deployedThisTurn = true;
+            }
+            // 烟幕: 如果单位有烟幕且未行动, 不能被攻击, 已由 canAttack 处理
+
+            gameState.units.push(newUnit);
+            // 从手牌移除
+            player.hand.splice(cardIndex, 1);
+            updateFrontlineOwner();
+            render();
+        }
+
+        // 移动单位到前线
+        function moveUnit(unitId) {
+            const unit = gameState.units.find(u => u.id === unitId);
+            if (!unit || !canMoveToFront(unit)) return;
+
+            const player = getPlayer(gameState.currentPlayer);
+            player.command -= 1; // 移动消耗1
+            unit.moved = true;
+            unit.position = 'front';
+            updateFrontlineOwner();
+            render();
+        }
+
+        // 攻击目标 (总部或单位)
+        function attackAction(attackerId, targetType, targetUnitId = null) {
+            const attacker = gameState.units.find(u => u.id === attackerId);
+            if (!attacker || attacker.owner !== gameState.currentPlayer) return;
+
+            let targetUnit = null;
+            if (targetType === 'unit' && targetUnitId !== null) {
+                targetUnit = gameState.units.find(u => u.id === targetUnitId);
+                if (!targetUnit) return;
+            }
+
+            if (!canAttack(attacker, targetType, targetUnit)) return;
+
+            // 守护检查 (仅当目标是单位且非炮兵)
+            if (targetType === 'unit' && targetUnit) {
+                if (isProtectedByGuard(targetUnit, attacker)) {
+                    alert('目标被守护单位保护！');
+                    return;
+                }
+            }
+            if (targetType === 'headquarter') {
+                // 攻击总部也可能被守护保护
+                const opponent = 1 - attacker.owner;
+                const guards = gameState.units.filter(u => u.owner === opponent && u.hasAbility('守护') && u.position === 'front');
+                if (guards.length > 0 && attacker.type !== 'artillery') {
+                    alert('敌方前线守护单位保护总部！');
+                    return;
+                }
+            }
+
+            // 扣除指挥点
+            getPlayer(gameState.currentPlayer).command -= 1;
+            attacker.attacked = true;
+
+            // ===== 攻击结算 =====
+            // 如果目标是单位
+            if (targetType === 'unit' && targetUnit) {
+                // 伏击: 目标先攻击 (如果目标是伏击且未使用)
+                const attackerDied = handleVigil(targetUnit, attacker);
+                if (attackerDied) {
+                    // 攻击者死亡，攻击中断
+                    removeDeadUnits();
+                    gameState.selectedAttackerId = null;
+                    render();
+                    return;
+                }
+                // 攻击者造成伤害
+                targetUnit.health -= attacker.attack;
+                // 反击 (若目标存活且不是炮兵)
+                if (targetUnit.health > 0 && targetUnit.type !== 'artillery') {
+                    handleCounter(attacker, targetUnit);
+                }
+                removeDeadUnits();
+            } else if (targetType === 'headquarter') {
+                // 攻击总部
+                const opponentId = 1 - attacker.owner;
+                gameState.players[opponentId].hp -= attacker.attack;
+            }
+
+            // 检查胜利
+            if (gameState.players[0].hp <= 0) alert('玩家1胜利！');
+            else if (gameState.players[1].hp <= 0) alert('玩家0胜利！');
+
+            gameState.selectedAttackerId = null;
+            updateFrontlineOwner();
+            render();
+        }
+
+        // 结束回合
+        function endTurn() {
+            const next = 1 - gameState.currentPlayer;
+            gameState.currentPlayer = next;
+            const player = gameState.players[next];
+            // 增加指挥上限 (最多12)
+            if (player.maxCommand < 12) player.maxCommand++;
+            player.command = player.maxCommand; // 补满
+
+            // 重置所有单位回合状态 (所有单位)
+            gameState.units.forEach(u => {
+                u.resetTurn();
+                // 闪击单位的部署标记重置 (跨回合)
+                if (u.hasAbility('闪击')) {
+                    // 但下回合可以正常行动, moved/attacked false
+                }
+            });
+
+            gameState.selectedAttackerId = null;
+            render();
+        }
+
+        // ----- 渲染 -----
+        function render() {
+            const container = document.getElementById('gameContainer');
+            const p0 = gameState.players[0];
+            const p1 = gameState.players[1];
+            const current = gameState.currentPlayer;
+            const frontlineOwner = gameState.frontlineOwner;
+
+            let html = `
+                <div class="player-header">
+                    <div class="player-badge">🔰 P1 <span class="hp">❤️${p0.hp}</span></div>
+                    <div class="command">⚡${p0.command}/${p0.maxCommand}</div>
+                    <div class="turn-indicator">${current === 0 ? '▶️你的回合' : '⏸️敌方'}</div>
+                </div>
+                <div class="battlefield">
+                    <!-- 敌方支援线 -->
+                    <div class="row">
+                        <div class="zone">
+                            <div class="zone-label">敌方支援线</div>
+                            ${renderUnitsInZone(1, 'support')}
+                        </div>
+                    </div>
+                    <!-- 前线 (公共) -->
+                    <div class="row">
+                        <div class="zone" style="flex:2; background:#6f936f">
+                            <div class="zone-label">前线 · ${frontlineOwner === 0 ? '🔴我方' : (frontlineOwner === 1 ? '🔵敌方' : '⚫无人')}</div>
+                            ${renderUnitsInZone(0, 'front')}
+                            ${renderUnitsInZone(1, 'front')}
+                        </div>
+                    </div>
+                    <!-- 我方支援线 -->
+                    <div class="row">
+                        <div class="zone">
+                            <div class="zone-label">我方支援线</div>
+                            ${renderUnitsInZone(0, 'support')}
+                        </div>
+                    </div>
+                </div>
+                <div class="hand-area">
+                    <div class="hand-title">📋 手牌 (当前玩家)</div>
+                    <div class="hand-cards" id="handContainer">
+                        ${renderHand(current)}
+                    </div>
+                </div>
+                ${gameState.selectedAttackerId ? `<div class="cancel-btn" id="cancelAttack">❌ 取消攻击</div>` : ''}
+                <button class="end-turn-btn" id="endTurnBtn">⏭️ 结束回合</button>
+                <div class="footer-info">
+                    <span>⚡移动/攻击消耗1</span>
+                    <span>🎴部署消耗费用</span>
+                </div>
+            `;
+
+            container.innerHTML = html;
+
+            // 事件绑定 (手牌部署)
+            const handDiv = document.getElementById('handContainer');
+            if (handDiv) {
+                handDiv.querySelectorAll('.hand-card').forEach(card => {
+                    card.addEventListener('click', (e) => {
+                        const idx = e.currentTarget.dataset.index;
+                        if (idx !== undefined) deployCard(current, parseInt(idx));
+                    });
+                });
+            }
+
+            // 单位按钮事件 (通过容器代理)
+            document.querySelectorAll('[data-unit-id]').forEach(el => {
+                const unitId = parseInt(el.dataset.unitId);
+                // 移动按钮
+                if (el.classList.contains('move-btn')) {
+                    el.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        moveUnit(unitId);
+                    });
+                }
+                // 攻击按钮
+                if (el.classList.contains('attack-btn')) {
+                    el.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        // 设置选中攻击者
+                        if (gameState.selectedAttackerId === unitId) {
+                            gameState.selectedAttackerId = null; // 取消
+                        } else {
+                            gameState.selectedAttackerId = unitId;
+                        }
+                        render(); // 重新渲染高亮
+                    });
+                }
+            });
+
+            // 攻击目标点击 (如果处于攻击模式)
+            if (gameState.selectedAttackerId) {
+                document.querySelectorAll('.targetable').forEach(el => {
+                    el.addEventListener('click', (e) => {
+                        const targetType = el.dataset.targetType; // 'unit' or 'headquarter'
+                        const targetId = el.dataset.targetId ? parseInt(el.dataset.targetId) : null;
+                        attackAction(gameState.selectedAttackerId, targetType, targetId);
+                    });
+                });
+            }
+
+            // 取消攻击
+            const cancelBtn = document.getElementById('cancelAttack');
+            if (cancelBtn) {
+                cancelBtn.addEventListener('click', () => {
+                    gameState.selectedAttackerId = null;
+                    render();
+                });
+            }
+
+            // 结束回合
+            document.getElementById('endTurnBtn').addEventListener('click', endTurn);
+        }
+
+        // 渲染某区域单位
+        function renderUnitsInZone(owner, zone) {
+            const units = gameState.units.filter(u => u.owner === owner && u.position === zone);
+            if (units.length === 0) return '<div style="color:#aaa; padding:10px;">— 空 —</div>';
+            return units.map(u => renderUnitCard(u)).join('');
+        }
+
+        // 渲染单个单位卡片，包含按钮和攻击模式高亮
+        function renderUnitCard(unit) {
+            const isCurrentOwner = (unit.owner === gameState.currentPlayer);
+            const canShowActions = isCurrentOwner && !gameState.selectedAttackerId; // 未进入攻击模式显示按钮
+            const isSelected = (gameState.selectedAttackerId === unit.id);
+            // 是否可被选为攻击目标
+            const isEnemy = (unit.owner !== gameState.currentPlayer);
+            const targetable = (gameState.selectedAttackerId && isEnemy) ? 'targetable' : '';
+
+            // 能力标签
+            const abTags = unit.abilities.map(ab => `<span class="ability-tag">${ab}</span>`).join('');
+
+            let cardHtml = `
+                <div class="unit-card ${isSelected ? 'selected-attacker' : ''} ${targetable}" data-unit-id="${unit.id}" data-target-type="unit" data-target-id="${unit.id}">
+                    <div class="unit-name">${unit.name}</div>
+                    <div class="unit-stats">⚔️${unit.attack} ❤️${unit.health}</div>
+                    <div class="unit-abilities">${abTags}</div>
+            `;
+
+            if (canShowActions && unit.owner === gameState.currentPlayer) {
+                cardHtml += `<div class="action-buttons">`;
+                // 移动按钮
+                if (unit.position === 'support' && canMoveToFront(unit)) {
+                    cardHtml += `<button class="action-btn move move-btn" data-unit-id="${unit.id}">➡️移</button>`;
+                } else {
+                    cardHtml += `<button class="action-btn move" disabled style="opacity:0.3">➡️移</button>`;
+                }
+                // 攻击按钮
+                if (unit.canAttack() && getPlayer(gameState.currentPlayer).command >= 1) {
+                    cardHtml += `<button class="action-btn attack attack-btn" data-unit-id="${unit.id}">⚔️攻</button>`;
+                } else {
+                    cardHtml += `<button class="action-btn attack" disabled style="opacity:0.3">⚔️攻</button>`;
+                }
+                cardHtml += `</div>`;
+            }
+            // 如果是敌方且在攻击模式下，已经加了targetable类，不需要额外按钮
+            cardHtml += `</div>`;
+            return cardHtml;
+        }
+
+        // 渲染手牌 (当前玩家)
+        function renderHand(playerId) {
+            const player = gameState.players[playerId];
+            if (!player.hand.length) return '<div>手牌空</div>';
+            return player.hand.map((card, idx) => {
+                const disabled = (player.command < card.cost) ? 'disabled' : '';
+                return `
+                    <div class="hand-card ${disabled}" data-index="${idx}">
+                        <div>${card.name}</div>
+                        <div>⚔️${card.attack} ❤️${card.health}</div>
+                        <div class="hand-cost">⚡${card.cost}</div>
+                        <div style="font-size:0.6rem;">${card.abilities.join(' ') }</div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // 启动
+        initGame();
+    })();
+</script>
 </body>
 </html>
