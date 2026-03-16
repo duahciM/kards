@@ -1,7 +1,7 @@
 import { Game } from '../core/Game';
 import { Unit } from '../core/Unit';
-import { Player, PlayerId, ZoneType, Keyword } from '../core/';
-
+import { Player } from '../core/Player';
+import { PlayerId, ZoneType, Keyword, UnitType } from '../core/Enums';
 export class CombatSystem {
   constructor(private game: Game) {}
 
