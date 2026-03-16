@@ -1,55 +1,90 @@
-import { Player, PlayerId, ZoneType, UnitType, Keyword } from './';
-import { Unit } from './Unit';
+import { Player, PlayerId, ZoneType } from './';
 import { CombatSystem } from '../systems/CombatSystem';
 import { MovementSystem } from '../systems/MovementSystem';
+import { Unit } from './Unit';
 
 export class Game {
   public players: [Player, Player];
   public currentTurn: PlayerId = PlayerId.Player1;
   public turnNumber: number = 1;
-  public frontlineOwner: PlayerId | null = null; // 当前控制前线的玩家
+  public frontlineOwner: PlayerId | null = null;
+  public winner: PlayerId | null = null;
 
-  private combatSystem: CombatSystem;
-  private movementSystem: MovementSystem;
+  public combatSystem: CombatSystem;
+  public movementSystem: MovementSystem;
 
-  constructor() {
-    this.players = [new Player(PlayerId.Player1), new Player(PlayerId.Player2)];
+  constructor(player1Deck: Card[], player2Deck: Card[]) {
+    this.players = [new Player(PlayerId.Player1, player1Deck), new Player(PlayerId.Player2, player2Deck)];
     this.combatSystem = new CombatSystem(this);
     this.movementSystem = new MovementSystem(this);
   }
 
-  // 开始新回合
   startTurn() {
+    if (this.winner) return;
     const player = this.players[this.currentTurn];
-    // 1. 增加指挥点上限（最多12）
     player.maxCommandPoints = Math.min(player.maxCommandPoints + 1, 12);
-    // 2. 补满指挥点
     player.commandPoints = player.maxCommandPoints;
-    // 3. 抽一张牌（可扩展）
-    // 4. 重置单位行动状态
+    player.drawCard(); // 每回合抽一张
     this.resetUnitsForTurn(player);
-    // 5. 触发单位回合开始关键词
     this.triggerTurnStart(player);
   }
 
-  // 部署单位
-  deployUnit(card: Card, player: Player, targetZone: ZoneType): boolean {
-    // 检查指挥点、目标区域合法性（前线只能由控制者部署单位？这里简化，支援线可部署）
-    if (player.commandPoints < card.cost) return false;
-    // 创建单位实体
-    const unit = new Unit(player.id, card.unitType, card.attack, card.health);
-    // 根据卡牌关键词添加效果（需从关键词工厂获取）
-    card.keywords.forEach(kw => {
-      const effect = KeywordFactory.create(kw); // 假设存在工厂
-      unit.addKeyword(effect);
+  endTurn() {
+    if (this.winner) return;
+    // 触发回合结束关键词
+    const player = this.players[this.currentTurn];
+    this.triggerTurnEnd(player);
+    // 切换玩家
+    this.currentTurn = this.currentTurn === PlayerId.Player1 ? PlayerId.Player2 : PlayerId.Player1;
+    this.startTurn();
+  }
+
+  private resetUnitsForTurn(player: Player) {
+    player.zones.forEach(units => {
+      units.forEach(unit => {
+        unit.hasMoved = false;
+        unit.hasAttacked = false;
+        unit.canAttack = true;
+        unit.canMove = true;
+        // 如果是坦克，保留移动后攻击能力（已在攻击系统中处理）
+      });
     });
-    // 设置初始区域
+  }
+
+  private triggerTurnStart(player: Player) {
+    player.zones.forEach(units => units.forEach(u => u.triggerTurnStart(this)));
+  }
+
+  private triggerTurnEnd(player: Player) {
+    // 可扩展
+  }
+
+  // 部署单位
+  deployCard(card: Card, player: Player, targetZone: ZoneType): boolean {
+    if (player.commandPoints < card.cost) return false;
+    // 只能部署到己方支援线或前线？简单起见允许部署到支援线
+    if (targetZone !== ZoneType.FriendlySupport && targetZone !== ZoneType.Frontline) return false;
+    // 前线部署需要控制前线？暂简化允许
+    const unit = new Unit(player.id, card.unitType, card.name, card.attack, card.health);
+    // 添加关键词效果
+    card.keywords.forEach(kw => {
+      let effect;
+      switch (kw) {
+        case Keyword.Flash: effect = new Flash(); break;
+        case Keyword.Guard: effect = new Guard(); break;
+        case Keyword.Ambush: effect = new Ambush(); break;
+        case Keyword.Smoke: effect = new Smoke(); break;
+      }
+      if (effect) unit.addKeyword(effect);
+    });
     unit.zone = targetZone;
     player.zones.get(targetZone)!.push(unit);
     player.commandPoints -= card.cost;
-    // 触发部署关键词
+    // 从手牌移除
+    const handIndex = player.hand.indexOf(card);
+    if (handIndex !== -1) player.hand.splice(handIndex, 1);
+
     unit.triggerDeploy(this);
-    // 如果是闪击单位，本回合可行动
     if (unit.keywords.has(Keyword.Flash)) {
       unit.canAttack = true;
       unit.canMove = true;
@@ -57,33 +92,10 @@ export class Game {
     return true;
   }
 
-  // 移动单位（由MovementSystem调用）
-  moveUnit(unit: Unit, player: Player, toZone: ZoneType): boolean {
-    return this.movementSystem.canMove(unit, player, toZone) &&
-           this.movementSystem.executeMove(unit, player, toZone);
-  }
-
-  // 单位攻击（由CombatSystem处理）
-  attack(attacker: Unit, defender: Unit | Player, player: Player): boolean {
-    return this.combatSystem.attack(attacker, defender, player);
-  }
-
-  // 重置单位每回合行动状态
-  private resetUnitsForTurn(player: Player) {
-    player.zones.forEach(units => {
-      units.forEach(unit => {
-        // 基础重置：坦克默认可移动+攻击（但需指挥点），其他只能选其一
-        unit.hasMoved = false;
-        unit.hasAttacked = false;
-        unit.canAttack = true;
-        unit.canMove = true;
-        // 根据类型调整（可在关键词中覆盖）
-        if (unit.unitType === UnitType.Tank) {
-          // 坦克可以移动后攻击，但需分别消耗指挥点（由玩家操作时判断）
-        } else {
-          // 步兵只能移动或攻击之一，在操作时由系统限制
-        }
-      });
-    });
+  // 检查胜利条件
+  checkVictory(): PlayerId | null {
+    if (this.players[0].headquartersHealth <= 0) return PlayerId.Player2;
+    if (this.players[1].headquartersHealth <= 0) return PlayerId.Player1;
+    return null;
   }
 }
