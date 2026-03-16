@@ -1,5 +1,7 @@
-import { Keyword, KeywordEffect } from './';
+import { Keyword } from './Enums';
+import { KeywordEffect } from './KeywordEffect';
 import { PlayerId, ZoneType, UnitType } from './Enums';
+import { Game } from './Game';
 
 export class Unit {
   public owner: PlayerId;
