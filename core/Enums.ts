@@ -6,5 +6,4 @@ export enum Keyword {
   Guard = '守护',
   Ambush = '伏击',
   Smoke = '烟幕',
-  // 可扩展
 }
