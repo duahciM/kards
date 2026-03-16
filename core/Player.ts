@@ -1,29 +1,49 @@
 import { Unit } from './Unit';
+import { Card } from './Card';
 import { ZoneType, PlayerId } from './Enums';
 
 export class Player {
   public id: PlayerId;
   public headquartersHealth: number = 20;
-  public commandPoints: number = 0;       // 当前可用指挥点
-  public maxCommandPoints: number = 1;     // 上限，每回合+1
-  public deck: Card[] = [];                // 牌库
-  public hand: Card[] = [];                 // 手牌
+  public commandPoints: number = 0;
+  public maxCommandPoints: number = 1;
+  public deck: Card[] = [];
+  public hand: Card[] = [];
+  public discardPile: Card[] = [];
   public zones: Map<ZoneType, Unit[]> = new Map([
     [ZoneType.FriendlySupport, []],
     [ZoneType.Frontline, []],
-    [ZoneType.EnemySupport, []] // 敌方支援线由对方控制，此处仅用于查看
+    [ZoneType.EnemySupport, []]
   ]);
 
-  constructor(id: PlayerId) {
+  constructor(id: PlayerId, deck: Card[]) {
     this.id = id;
+    this.deck = this.shuffle([...deck]);
+    this.drawInitialHand();
   }
 
-  // 获取指定区域的单位
+  private shuffle<T>(array: T[]): T[] {
+    for (let i = array.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [array[i], array[j]] = [array[j], array[i]];
+    }
+    return array;
+  }
+
+  private drawInitialHand() {
+    for (let i = 0; i < 5; i++) this.drawCard();
+  }
+
+  drawCard() {
+    if (this.deck.length === 0) return; // 暂不处理疲劳
+    const card = this.deck.pop()!;
+    this.hand.push(card);
+  }
+
   getUnitsInZone(zone: ZoneType): Unit[] {
     return this.zones.get(zone) || [];
   }
 
-  // 移动单位到另一个区域（仅修改位置，不检查合法性）
   moveUnit(unit: Unit, toZone: ZoneType) {
     const fromZone = unit.zone;
     const fromList = this.zones.get(fromZone)!;
